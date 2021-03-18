@@ -68,8 +68,12 @@ for (k in k_vals) {
   }
 start <- start + reps
 }
+# Create copy for saving
+out_save <- out %>%
+  #C hange k value strings to numbers so data looks nicer
+  mutate(k = rep(c(2,5,10), each = 30))
 # Save data in Results folder
-write.csv(out, file = "../Output/Results/rf_simulations.csv", row.names = FALSE)
+write.csv(out_save, file = "../Output/Results/rf_simulations.csv", row.names = FALSE)
 ```
 
 Next, we'll plot the MSE for each `k` and summarize the data:
