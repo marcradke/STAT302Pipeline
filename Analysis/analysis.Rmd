@@ -1,0 +1,111 @@
+---
+title: "Project 3: Data Analysis Pipeline"
+author: "Marc R Radke"
+date: "18 March 2021"
+output: html_document
+
+---
+
+<!--- Begin styling code. --->
+
+```{=html}
+<style type="text/css">
+/* Whole document: */
+body{
+  font-family: Cambria, Georgia, Palatino, serif;
+  font-size: 12pt;
+}
+h1.title {
+  font-size: 38px;
+  text-align: center;
+}
+h4.author {
+  font-size: 18px;
+  text-align: center;
+}
+h4.date {
+  font-size: 18px;
+  text-align: center;
+}
+</style>
+```
+<!--- End styling code. --->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To demonstrate the data analysis pipeline, we will use the random forest cross-validation function with the `my_penguins` data. First, we'll load the data and source our function:
+
+```{r, message = FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+# Load data
+my_penguins <- read.csv("../Data/my_penguins.csv")
+# Trim penguins dataset to only variables we want  
+pen <- my_penguins[,3:6] %>% tidyr::drop_na()
+# Source my_rf_cv.R
+source("../Code/my_rf_cv.R")
+```
+
+We will predict `body_mass_g` using  `bill_length_mm`, `bill_depth_mm`, and `flipper_length_mm` and iterate through `k = 2`, `k = 5`, and `k = 10` (where `k` is the number of folds in our cross-validation) 30 times each to analyze the spread of the average MSE (mean squared error).
+
+```{r, cache = TRUE}
+reps <- 30
+k_vals <- c(2, 5, 10)
+# Create empty output dataframe
+out <- data.frame("k" = rep(NA, reps * length(k_vals)),
+                  "mse" = rep(NA, reps * length(k_vals)))
+
+# Iterate through each k and each repetition and record the MSE
+start <- 0
+for (k in k_vals) {
+  for (i in 1:reps) {
+    out[start + i, 1] <- paste0("k_", k)
+    out[start + i, 2] <- my_rf_cv(k)
+  }
+start <- start + reps
+}
+# Save data in Results folder
+write.csv(out, file = "../Output/Results/rf_simulations.csv", row.names = FALSE)
+```
+
+Next, we'll plot the MSE for each `k` and summarize the data:
+
+```{r, message = FALSE, fig.width = 7, fig.height = 5, fig.align = "center"}
+# Make k column a factor and relevel
+out$k <- factor(out$k, levels = c("k_2", "k_5", "k_10"))
+
+# Create boxplots for each value of k
+rf_plot <- ggplot(data = out, aes(y = mse, x = k)) +
+  geom_boxplot(fill = "#ff6961") +
+  scale_x_discrete(labels = c(2, 5, 10)) +
+  labs(title = "Mean Squared Error For Each k",
+       y = "MSE") +
+  theme_dark() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        plot.margin = margin(0.5, 1, 0.5, 0.5, "cm"))
+# Save plot to Figures folder
+ggsave("../Output/Figures/MSE_boxplot.png")
+rf_plot
+```
+
+```{r}
+# Group by k and summarize: mean and sd
+summary <- out %>%
+  # Change k value strings to numbers so table looks nicer
+  dplyr::mutate(k = rep(c(2,5,10), each = 30)) %>%
+  dplyr::group_by(k) %>%
+  dplyr::summarize(mse_mean = mean(mse),
+            mse_sd = sd(mse))
+# assign colnames for printing
+colnames(summary) <- c("k", "Mean MSE", "SD MSE")
+# Save table to Results folder
+saveRDS(summary, file = "../Output/Results/summary.rds")
+# Format and print table
+kable_styling(kable(summary), full_width = FALSE, position = "center")
+```
+
+As `k` increases, the mean and standard deviation of the MSE tends to decrease, possibly because more folds means that more training data is used to fit the model each time.
